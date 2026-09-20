@@ -25,8 +25,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 
-#include <stdbool.h>
-
+#include "message_protocol.h"
 #include "usbd_def.h"
 
 /* USER CODE END INCLUDE */
@@ -37,11 +36,6 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
-#define RING_BUFFER_SIZE 512
-uint8_t ring_buffer[RING_BUFFER_SIZE];
-uint16_t ring_read_head = 0, ring_write_head = 0;
-
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -60,10 +54,6 @@ uint16_t ring_read_head = 0, ring_write_head = 0;
  */
 
 /* USER CODE BEGIN PRIVATE_TYPES */
-
-#define MAGIC_PACKET_VALUE_1 0xD3
-#define MAGIC_PACKET_VALUE_2 0x91
-
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -267,13 +257,8 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length) {
  * USBD_FAIL
  */
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t* Len) {
-    for (int i = 0; i < Len; i++) {
-        if (ring_read_head == ring_write_head && i < Len - 1) {
-            return USBD_FAIL;
-        }
-        ring_buffer[ring_write_head] = Buf[i];
-        ring_write_head = (ring_write_head + 1) % RING_BUFFER_SIZE;
-    }
+    // we do not care about this failing, this would result in this  package being corrupted/dropped
+    add_received_bytes(Buf, *Len);
 
     USBD_CDC_ReceivePacket(&hUsbDeviceFS);
     return (USBD_OK);
@@ -328,15 +313,6 @@ static int8_t CDC_TransmitCplt_FS(uint8_t* Buf, uint32_t* Len, uint8_t epnum) {
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
-
-bool usb_receive_next_command(host_to_hand_command_t* dest, uint32_t payload_size) {
-    while (ring_read_head != ring_write_head) {
-        ring_read_head = (ring_read_head + 1) % RING_BUFFER_SIZE;
-    }
-
-    return 0;
-}
-
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**

@@ -34,8 +34,6 @@ extern "C" {
 
 #include <stdbool.h>
 
-#include "interface.h"
-
 /* USER CODE END INCLUDE */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -114,9 +112,6 @@ extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
-
-bool usb_receive_next_command(host_to_hand_command_t* dest);
-
 /* USER CODE END EXPORTED_FUNCTIONS */
 
 /**

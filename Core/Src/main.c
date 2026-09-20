@@ -25,10 +25,12 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 
-#include "interface.h"
+#include "hand_communication.h"
+#include "message_protocol.h"
 #include "pca9685.h"
 #include "stm32f4xx_hal.h"
 #include "usbd_cdc_if.h"
+#include "usbd_def.h"
 
 /* USER CODE END Includes */
 
@@ -111,9 +113,12 @@ int main(void) {
         Error_Handler();
     }
 
-    // uint16_t pwm_off_times[16];
+    host_to_hand_command_t command;
 
-    host_to_hand_command_t latest_command;
+    hand_to_host_commant_t hand_to_host;
+    for (int i = 0; i < 32; i++) {
+        hand_to_host.sensors[i] = i;
+    }
 
     /* USER CODE END 2 */
 
@@ -124,31 +129,40 @@ int main(void) {
 
         /* USER CODE BEGIN 3 */
 
-        if (usb_receive_next_command(&latest_command)) {
-            // received command
-
-            char msg[] = "Received message!\r\n";
-            CDC_Transmit_FS((uint8_t*)msg, strlen(msg));
+        message_protocol_status_t status;
+        while ((status = extract_message(&command, sizeof(host_to_hand_command_t))) ==
+               MESSAGE_PROTOCOL_NO_PACKET) {
+            // wait for message
+            // maybe do other things here
         }
 
-        char msg[] = "Hello from STM32!\r\n";
-        CDC_Transmit_FS((uint8_t*)msg, strlen(msg));
+        if (status != MESSAGE_PROTOCOL_OK) {
+            Error_Handler();
+        }
 
-        HAL_Delay(1000);
+        // new message, update pwm
+        for (int i = 0; i < 16; i++) {
+            // clamp
+            if (command.actuators[i] < 200) {
+                command.actuators[i] = 200;
+            } else if (command.actuators[i] > 410) {
+                command.actuators[i] = 410;
+            }
+        }
+        if (PCA9685_SetAllPWM(&hi2c2, command.actuators) != HAL_OK) {
+            Error_Handler();
+        }
 
-        // for (uint16_t val = 200; val < 410; val += 30) {
-
-        //   for (int i = 0; i < 16; i++) {
-        //     pwm_off_times[i] = val;
-
-        //   }
-
-        //   if (PCA9685_SetAllPWM(&hi2c2, pwm_off_times) != HAL_OK) {
-        //     Error_Handler();
-        //   }
-
-        //   HAL_Delay(1000);
-        // }
+        // our turn to send sensor data to computer
+        const uint32_t message_buffer_size = MESSAGE_BUFFER_SIZE(sizeof(hand_to_host));
+        uint8_t message_buffer[message_buffer_size];
+        encapsulate_message(message_buffer, message_buffer_size, &hand_to_host,
+                            sizeof(hand_to_host));
+        uint8_t usb_status;
+        while ((usb_status = CDC_Transmit_FS(message_buffer, message_buffer_size)) == USBD_BUSY);
+        if (usb_status != USBD_OK) {
+            Error_Handler();
+        }
     }
     /* USER CODE END 3 */
 }
